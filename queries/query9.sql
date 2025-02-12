@@ -1,0 +1,11 @@
+-- Query 9
+-- -----------------------------------------------------------------------------------
+-- GOALS: (A) Find all pairs of users that meet each of the following criteria
+--              (i) same last name
+--              (ii) same hometown
+--              (iii) are friends
+--              (iv) less than 10 birth years apart
+
+-- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
+-- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
+-- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
