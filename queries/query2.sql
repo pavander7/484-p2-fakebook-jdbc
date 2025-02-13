@@ -8,3 +8,16 @@
 -- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
 -- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
 -- WARNING: TABLE NAMES MUST BE REPLACED WITH CONSTANT VARIABLES WHEN COPIED TO JAVA
+
+-- Query 2a
+-- Goals: (A)
+SELECT  u.User_ID, 
+        u.First_Name, u.Last_Name
+FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f
+    WHERE u.User_ID = f.User1_ID
+    OR u.User_ID = f.User2_ID
+) 
+ORDER BY u.User_ID;
