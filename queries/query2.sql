@@ -12,7 +12,8 @@
 -- Query 2a
 -- Goals: (A)
 SELECT  u.User_ID, 
-        u.First_Name, u.Last_Name
+        u.First_Name, 
+        u.Last_Name
 FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u
 WHERE NOT EXISTS (
     SELECT 1
