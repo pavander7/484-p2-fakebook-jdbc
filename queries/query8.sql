@@ -14,7 +14,7 @@
 SELECT  u.user_id, 
         u.first_name, 
         u.last_name, 
-        u.day_of_birth, 
+        u.year_of_birth, 
         u.month_of_birth, 
         u.day_of_birth
 FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u
@@ -24,4 +24,4 @@ JOIN project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f
         OR 
         (f.user2_id = u.user_id AND f.user1_id = 426) -- FIXME: replace with a variable in java
     )
-ORDER BY u.year_of_birth, u.month_of_birth, u.day_of_birth, u.user_id;
+ORDER BY u.year_of_birth ASC, u.month_of_birth ASC, u.day_of_birth ASC, u.user_id DESC;
