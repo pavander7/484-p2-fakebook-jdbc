@@ -253,9 +253,9 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "u.First_Name, " +
                         "u.Last_Name " + 
                     "FROM " + UsersTable + " u " + 
-                    "JOIN " CurrentCitiesTable " c " + 
+                    "JOIN " + CurrentCitiesTable " c " + 
                         "ON u.User_ID = c.User_ID " + 
-                    "JOIN " HometownCitiesTable + " h " + 
+                    "JOIN " + HometownCitiesTable + " h " + 
                         "ON u.User_ID = h.User_ID " + 
                     "WHERE c.Current_City_ID <> h.Hometwon_City_ID " + 
                     "ORDER BY u.User_ID");
@@ -296,6 +296,47 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 tp.addTaggedUser(u3);
                 results.add(tp);
             */
+            
+            // Step 1
+            // ------------
+            // * (A) Find <num> most-tagged photos
+            ResultSet rst = stmt.executeQuery(
+                "SELECT p.photo_id, " +
+                        "p.photo_link, " + 
+                        "a.album_id, " +
+                        "a.album_name, " +
+                        "COUNT(DISTINCT t.tag_subject_id) AS Num_Tags " +
+                    "FROM " + PhotosTable + " p " + 
+                    "JOIN " + AlbumsTable + " a " + 
+                        "ON p.album_id = a.album_id " + 
+                    "LEFT JOIN " + TagsTable + " t " + 
+                        "ON p.photo_id = t.tag_photo_id " +
+                    "GROUP BY p.photo_id, p.photo_link, a.album_id, a.album_name " +
+                    "ORDER BY Num_Tags DESC, p.photo_id ASC " + 
+                    "FETCH FIRST " + String.valueOf(num) + "ROWS ONLY");
+                
+            while(rst.next()) {
+                int photoID = rst.getInt(1);
+                PhotoInfo p = new PhotoInfo(photoID, rst.getInt(3), rst.getString(2), rst.getString(4));
+                TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
+
+                ResultSet rst2 = stmt.executeQuery(
+                    "SELECT u.user_id, " + 
+                            "u.first_name, " +
+                            "u.last_name " + 
+                        "FROM " + PhotosTable + " p " + 
+                        "JOIN " + TagsTable + " t " +
+                            "ON p.photo_id = t.tag_photo_id " + 
+                        "JOIN " + UsersTable + " u " + 
+                            "ON t.tag_subject_id = u.user_id " + 
+                        "WHERE p.photo_id = " String.valueOf(photoID) + " " + 
+                        "ORDER BY u.user_id");
+                while(rst2.next()) {
+                    UserInfo utemp = new UserInfo(rst2.getInt(1), rst2.getString(2), rst2.getString(3));
+                    tp.add(utemp)
+                }
+                results.add(tp);
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
