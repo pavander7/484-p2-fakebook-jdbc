@@ -400,7 +400,9 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "WHERE f.user1_id = u1.usr_id " +
                         "AND f.user2_id = u2.user_id" + 
                         ") " + 
-                    "ORDER BY u1.user_id, u2.user_id " + 
+                    "GROUP BY u1.user_id, u1.first_name, u1.last_name, u1.year_of_birth, " + 
+                            "u2.user_id, u2.first_name, u2.last_name, u2.year_of_birth " +
+                    "ORDER BY num_tags, u1.user_id, u2.user_id " + 
                     "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY");
             while(rst.next()) {
                 int uid1 = rst.getInt(1), uid2 = rst.getInt(5);
