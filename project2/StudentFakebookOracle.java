@@ -41,7 +41,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
             // * Find the month in which the most users were born
             // * Find the month in which the fewest (but at least 1) users were born
             ResultSet rst = stmt.executeQuery(
-                    "SELECT COUNT(*) AS Birthed, Month_of_Birth " + // select birth months and number of uses with that birth month
+                    "SELECT COUNT(*) AS Birthed, Month_of_Birth " + // select birth months and number of users with that birth month
                             "FROM " + UsersTable + " " + // from all users
                             "WHERE Month_of_Birth IS NOT NULL " + // for which a birth month is available
                             "GROUP BY Month_of_Birth " + // group into buckets by birth month
@@ -125,7 +125,62 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 info.setCommonNameCount(42);
                 return info;
             */
-            return new FirstNameInfo(); // placeholder for compilation
+
+            // Step 1
+            // ------------
+            // * (A) Find the first name(s) with the most letters
+            // * (B) Find the first name(s) with the fewest letters
+            ResultSet rst = stmt.executeQuery(
+                    "SELECT First_Name, Length(First_Name) AS Name_Length " +
+                            "FROM " + UsersTable + " " +
+                            "ORDER BY Name_Length DESC, First_Name ASC");
+
+            rst.first();
+            int mostLetters = rst.getInt(2);
+            rst.last();
+            int leastLetters = rst.getInt(2);
+
+            FirstNameInfo info = new FirstNameInfo();
+
+            rst.first();
+            while (rst.next()) { // step through result rows/records one by one
+                if (rst.getInt(2) == mostLetters) {
+                    info.addLongName(rst.getString(1));
+                }
+                if (rst.getInt(2) == leastLetters) {
+                    info.addShortName(rst.getString(1));
+                }
+            }
+
+            // Step 2
+            // ------------
+            // * (C) Find the first name held by the most users
+            // * (D) Find the number of users whose first name is that identified in (C)
+            rst = stmt.executeQuery(
+                    "SELECT First_Name, COUNT(First_Name) AS Name_Count " +
+                        "FROM " + UsersTable + " " + 
+                        "ORDER BY Name_Count DESC, First_Name ASC");
+            
+            int most_users = 0;
+
+            while(rst.next()) {
+                if(rst.isFirst()) { // First entry has the most users with that name
+                    most_users = rst.getInt(2);
+                }
+                if(rst.getInt(2) == most_users) { // Any name with as many users as the first (including itself) is also the most common
+                    info.addCommonName(rst.getString(1));
+                }
+            }
+            info.setCommonNameCount(most_users);
+
+            // Step 4
+            // ------------
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
+            return info;
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new FirstNameInfo();
