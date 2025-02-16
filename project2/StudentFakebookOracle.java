@@ -318,16 +318,135 @@ public final class StudentFakebookOracle extends FakebookOracle {
 
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
-            /*
-                EXAMPLE DATA STRUCTURE USAGE
-                ============================================
-                UserInfo u1 = new UserInfo(16, "The", "Hacker");
-                UserInfo u2 = new UserInfo(80, "Dr.", "Marbles");
-                UserInfo u3 = new UserInfo(192, "Digit", "Le Boid");
+            ResultSet rst = stmt.executeQuery(
+                "SELECT  u1.user_id, \n" + //
+                "        u1.first_name, \n" + //
+                "        u1.last_name, \n" + //
+                "        u2.user_id, \n" + //
+                "        u2.first_name, \n" + //
+                "        u2.last_name, \n" + //
+                "        COUNT(*) AS Mutual_Count\n" + //
+                "-- select ALL pairs of users\n" + //
+                "FROM " + UsersTable + " u1\n" + //
+                "JOIN " + UsersTable + " u2\n" + //
+                "    ON u1.user_id < u2.user_id\n" + //
+                "-- (i) find pairs of friends in common\n" + //
+                "-- (i)(a) find friends of u1 that are not u2\n" + //
+                "JOIN " + FriendsTable + " f1\n" + //
+                "    ON (\n" + //
+                "        (u1.user_id = f1.user1_id AND u2.user_id <> f1.user2_id) \n" + //
+                "        OR \n" + //
+                "        (u1.user_id = f1.user2_id AND u2.user_id <> f1.user1_id)\n" + //
+                "    )\n" + //
+                "-- (i)(b) select only friends of u1 that are friends of u2\n" + //
+                "WHERE EXISTS (\n" + //
+                "    SELECT 1\n" + //
+                "    FROM " + FriendsTable + " f2\n" + //
+                "    WHERE (\n" + //
+                "        (\n" + //
+                "            f2.user1_id = u2.user_id \n" + //
+                "            AND \n" + //
+                "            (\n" + //
+                "                (f1.user1_id = f2.user2_id AND f1.user1_id <> u1.user_id)\n" + //
+                "                OR\n" + //
+                "                (f1.user2_id = f2.user2_id AND f1.user2_id <> u1.user_id)\n" + //
+                "            )\n" + //
+                "        )\n" + //
+                "        OR\n" + //
+                "        (\n" + //
+                "            f2.user2_id = u2.user_id \n" + //
+                "            AND \n" + //
+                "            (\n" + //
+                "                (f1.user1_id = f2.user1_id AND f1.user1_id <> u1.user_id)\n" + //
+                "                OR\n" + //
+                "                (f1.user2_id = f2.user1_id AND f1.user2_id <> u1.user_id)\n" + //
+                "            )\n" + //
+                "        )\n" + //
+                "    )\n" + //
+                ")\n" + //
+                "-- ensures no duplicates or self-pairs\n" + //
+                "AND u1.user_id < u2.user_id\n" + //
+                "-- (ii) ensure users are not already friends\n" + //
+                "AND NOT EXISTS (\n" + //
+                "    SELECT 1\n" + //
+                "    FROM " + FriendsTable + " f3\n" + //
+                "    WHERE f3.user1_id = u1.user_id\n" + //
+                "    AND f3.user2_id = u2.user_id\n" + //
+                "    -- u1.user_id < u2.user_id and f3.user1_id < f3.user2_id -> \n" + //
+                "    -- no need to check if f3.user2_id = u1.user_id and f3.user1_id = u2.user_id\n" + //
+                ") \n" + //
+                "GROUP BY u1.user_id, \n" + //
+                "         u1.first_name, \n" + //
+                "         u1.last_name, \n" + //
+                "         u2.user_id, \n" + //
+                "         u2.first_name, \n" + //
+                "         u2.last_name\n" + //
+                "ORDER BY Mutual_Count DESC, u1.user_id ASC, u2.user_id ASC\n" + //
+                "FETCH FIRST " + num + " ROWS ONLY;"
+            );
+
+            while (rst.next()) {
+                // get u1
+                int u1_id = rst.getInt(1);
+                String u1_first_name = rst.getString(2);
+                String u1_last_name = rst.getString(3);
+
+                UserInfo u1 = new UserInfo(u1_id, u1_first_name, u1_last_name);
+
+                // get u2
+                int u2_id = rst.getInt(4);
+                String u2_first_name = rst.getString(5);
+                String u2_last_name = rst.getString(6);
+
+                UserInfo u2 = new UserInfo(u2_id, u2_first_name, u2_last_name);
+
+                // make pair
                 UsersPair up = new UsersPair(u1, u2);
-                up.addSharedFriend(u3);
+
+                // get mutuals
+                ResultSet rst_b = stmt.executeQuery(
+                    "SELECT  u.user_id, \n" + //
+                    "        u.first_name, \n" + //
+                    "        u.last_name\n" + //
+                    "FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u\n" + //
+                    "WHERE EXISTS (\n" + //
+                    "    SELECT 1\n" + //
+                    "    FROM project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f\n" + //
+                    "    WHERE (\n" + //
+                    "        (f.user1_id = u.user_id AND f.user2_id = 42) -- FIXME: replace with a variable in java\n" + //
+                    "        OR \n" + //
+                    "        (f.user2_id = u.user_id AND f.user1_id = 42) -- FIXME: replace with a variable in java\n" + //
+                    "    )\n" + //
+                    ") \n" + //
+                    "AND EXISTS (\n" + //
+                    "    SELECT 1\n" + //
+                    "    FROM project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f\n" + //
+                    "    WHERE (\n" + //
+                    "        (f.user1_id = u.user_id AND f.user2_id = 318) -- FIXME: replace with a variable in java\n" + //
+                    "        OR \n" + //
+                    "        (f.user2_id = u.user_id AND f.user1_id = 318) -- FIXME: replace with a variable in java\n" + //
+                    "    )\n" + //
+                    ")\n" + //
+                    "ORDER BY u.user_id;"
+                );
+
+                while (rst_b.next()) {
+                    int u3_id = rst_b.getInt(1);
+                    String u3_first_name = rst_b.getString(2);
+                    String u3_last_name = rst_b.getString(3);
+
+                    UserInfo u3 = new UserInfo(u3_id, u3_first_name, u3_last_name);
+
+                    up.addSharedFriend(u3);
+                }
+
+                // * Close resources being used
+                rst.close();
+                rst_b.close();
+                stmt.close();
+
                 results.add(up);
-            */
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -343,16 +462,32 @@ public final class StudentFakebookOracle extends FakebookOracle {
     public EventStateInfo findEventStates() throws SQLException {
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
-            /*
-                EXAMPLE DATA STRUCTURE USAGE
-                ============================================
-                EventStateInfo info = new EventStateInfo(50);
-                info.addState("Kentucky");
-                info.addState("Hawaii");
-                info.addState("New Hampshire");
-                return info;
-            */
-            return new EventStateInfo(-1); // placeholder for compilation
+            ResultSet rst = stmt.executeQuery(
+                "SELECT c.state_name, \n" + //
+                "        COUNT(e.event_id) AS Num_Events\n" + //
+                "FROM " + CitiesTable + " c\n" + //
+                "JOIN " + EventsTable + " e\n" + //
+                "ON c.city_id = e.event_city_id\n" + //
+                "GROUP BY c.state_name\n" + //
+                "ORDER BY Num_Events DESC, c.state_name ASC;"
+            );
+            
+            rst.first();
+            int most_events = rst.getInt(3);
+
+            EventStateInfo info = new EventStateInfo(most_events);
+
+            while (rst.next()) {
+                if (rst.getInt(3) == most_events) {
+                    info.addState(rst.getString(1));
+                }
+            }
+
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
+            return info;
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new EventStateInfo(-1);
@@ -369,14 +504,50 @@ public final class StudentFakebookOracle extends FakebookOracle {
     public AgeInfo findAgeInfo(long userID) throws SQLException {
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
-            /*
-                EXAMPLE DATA STRUCTURE USAGE
-                ============================================
-                UserInfo old = new UserInfo(12000000, "Galileo", "Galilei");
-                UserInfo young = new UserInfo(80000000, "Neil", "deGrasse Tyson");
-                return new AgeInfo(old, young);
-            */
-            return new AgeInfo(new UserInfo(-1, "UNWRITTEN", "UNWRITTEN"), new UserInfo(-1, "UNWRITTEN", "UNWRITTEN")); // placeholder for compilation
+            ResultSet rst = stmt.executeQuery(
+                "SELECT  u.user_id, \n" + //
+                "        u.first_name, \n" + //
+                "        u.last_name, \n" + //
+                "        u.year_of_birth, \n" + //
+                "        u.month_of_birth, \n" + //
+                "        u.day_of_birth\n" + //
+                "FROM " + UsersTable + " u\n" + //
+                "JOIN " + FriendsTable + " f\n" + //
+                "    ON (\n" + //
+                "        (f.user1_id = u.user_id AND f.user2_id = " + userID + ")\n" + //
+                "        OR \n" + //
+                "        (f.user2_id = u.user_id AND f.user1_id = " + userID + ")\n" + //
+                "    )\n" + //
+                "ORDER BY u.year_of_birth ASC, u.month_of_birth ASC, u.day_of_birth ASC, u.user_id ASC;"
+            );
+
+            rst.first();
+            int oldest = rst.getInt(1);
+            String oldest_first_name = rst.getString(2);
+            String oldest_last_name = rst.getString(3);
+            int oldest_year = rst.getInt(4);
+            int oldest_month = rst.getInt(5);
+            int oldest_day = rst.getInt(6);
+            while (rst.next()) {
+                if (rst.getInt(4) == oldest_year && rst.getInt(5) == oldest_month && rst.getInt(6) == oldest_day) {
+                    oldest = rst.getInt(1);
+                    oldest_first_name = rst.getString(2);
+                    oldest_last_name = rst.getString(3);
+                } else break;
+            }
+            rst.last();
+            int youngest = rst.getInt(1);
+            String youngest_first_name = rst.getString(2);
+            String youngest_last_name = rst.getString(3);
+
+            UserInfo old = new UserInfo(oldest, oldest_first_name, oldest_last_name);
+            UserInfo young = new UserInfo(youngest, youngest_first_name, youngest_last_name);
+
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
+            return new AgeInfo(old, young);
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new AgeInfo(new UserInfo(-1, "ERROR", "ERROR"), new UserInfo(-1, "ERROR", "ERROR"));
@@ -396,14 +567,66 @@ public final class StudentFakebookOracle extends FakebookOracle {
 
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
-            /*
-                EXAMPLE DATA STRUCTURE USAGE
-                ============================================
-                UserInfo u1 = new UserInfo(81023, "Kim", "Kardashian");
-                UserInfo u2 = new UserInfo(17231, "Kourtney", "Kardashian");
-                SiblingInfo si = new SiblingInfo(u1, u2);
+            ResultSet rst = stmt.executeQuery(
+                "SELECT  u1.user_id, \n" + //
+                "        u1.first_name, \n" + //
+                "        u1.last_name, \n" + //
+                "        u2.user_id, \n" + //
+                "        u2.first_name, \n" + //
+                "        u2.last_name\n" + //
+                "FROM " + UsersTable + "\n" + //
+                "-- (i) same last name\n" + //
+                "JOIN " + UsersTable + " u2\n" + //
+                "    ON u1.last_name = u2.last_name\n" + //
+                "-- (ii) same hometown\n" + //
+                "WHERE EXISTS (\n" + //
+                "    SELECT 1\n" + //
+                "    FROM " + HometownCitiesTable + " h1\n" + //
+                "    JOIN " + HometownCitiesTable + " h2\n" + //
+                "        ON h1.Hometown_City_ID = h2.Hometown_City_ID\n" + //
+                "    WHERE h1.user_id = u1.user_id\n" + //
+                "    AND h2.user_id = u2.user_id\n" + //
+                ")\n" + //
+                "-- (iii) are friends\n" + //
+                "AND EXISTS (\n" + //
+                "    SELECT 1\n" + //
+                "    FROM " + FriendsTable + " f\n" + //
+                "    WHERE f.user1_id = u1.user_id\n" + //
+                "    AND f.user2_id = u2.user_id\n" + //
+                ")\n" + //
+                "-- (iv) less than 10 birth years apart\n" + //
+                "AND ABS(u1.year_of_birth - u2.year_of_birth) < 10\n" + //
+                "-- ensures no duplicates or self-pairs\n" + //
+                "AND u1.user_id < u2.user_id\n" + //
+                "ORDER BY u1.user_id, u2.user_id;"
+            );
+
+            while (rst.next()) { // step through result rows/records one by one
+                // get user1 info
+                int user_id1 = rst.getInt(1);
+                String first_name1 = rst.getString(2);
+                String last_name1 = rst.getString(3);
+
+                // get user2 info
+                int user_id2 = rst.getInt(4);
+                String first_name2 = rst.getString(5);
+                String last_name2 = rst.getString(6);
+
+                // create users
+                UserInfo user1 = new UserInfo(user_id1, first_name1, last_name1);
+                UserInfo user2 = new UserInfo(user_id2, first_name2, last_name2);
+
+                // create sibling pair
+                SiblingInfo si = new SiblingInfo(user1, user2);
+
+                // add to results
                 results.add(si);
-            */
+            }
+
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
