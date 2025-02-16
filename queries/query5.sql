@@ -23,7 +23,8 @@ SELECT  u1.user_id,
         u2.user_id, 
         u2.first_name, 
         u2.last_name, 
-        u2.year_of_birth
+        u2.year_of_birth,
+        COUNT (*) as num_tags
 FROM project2.Public_Users u1 -- FakebookOracleConstants.UsersTable u1
 JOIN project2.Public_Users u2 -- FakebookOracleConstants.UsersTable u2
 -- (i) same gender
@@ -50,7 +51,15 @@ AND NOT EXISTS (
     -- u1.user_id < u2.user_id and f.user1_id < f.user2_id -> 
     -- no need to check if f.user2_id = u1.user_id and f.user1_id = u2.user_id
 )
-ORDER BY u1.user_id, u2.user_id
+GROUP BY u1.user_id, 
+        u1.first_name, 
+        u1.last_name, 
+        u1.year_of_birth, 
+        u2.user_id, 
+        u2.first_name, 
+        u2.last_name, 
+        u2.year_of_birth
+ORDER BY num_tags, u1.user_id, u2.user_id
 FETCH FIRST 2 ROWS ONLY; -- FIXME: replace with a variable in java
 
 -- Query 5b
