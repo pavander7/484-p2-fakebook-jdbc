@@ -131,9 +131,10 @@ public final class StudentFakebookOracle extends FakebookOracle {
             // * (A) Find the first name(s) with the most letters
             // * (B) Find the first name(s) with the fewest letters
             ResultSet rst = stmt.executeQuery(
-                    "SELECT First_Name, Length(First_Name) AS Name_Length " +
-                            "FROM " + UsersTable + " " +
-                            "ORDER BY Name_Length DESC, First_Name ASC");
+                    "SELECT DISTINCT First_Name, " +
+                                    "Length(First_Name) AS Name_Length " +
+                        "FROM " + UsersTable + " " +
+                        "ORDER BY Name_Length DESC, First_Name ASC");
 
             rst.first();
             int mostLetters = rst.getInt(2);
@@ -157,7 +158,8 @@ public final class StudentFakebookOracle extends FakebookOracle {
             // * (C) Find the first name held by the most users
             // * (D) Find the number of users whose first name is that identified in (C)
             rst = stmt.executeQuery(
-                    "SELECT First_Name, COUNT(First_Name) AS Name_Count " +
+                    "SELECT DISTINCT First_Name, " +
+                                    "COUNT(First_Name) AS Name_Count " +
                         "FROM " + UsersTable + " " + 
                         "ORDER BY Name_Count DESC, First_Name ASC");
             
@@ -207,6 +209,20 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(u1);
                 results.add(u2);
             */
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u.User_ID, u.First_Name, u.Last_Name " + 
+                    "FROM " + UsersTable + " u " + 
+                    "WHERE NOT EXISTS (" + 
+                        "SELECT 1 " + 
+                        "FROM " + FriendsTable + " f " + 
+                        "WHERE u.User_ID = f.User1_ID OR u.User_ID = f.User2_ID" +
+                    ") " +
+                    "ORDER BY u.User_ID ASC");
+        
+            while(rst.next()) {
+                UserInfo utemp = new UserInfo(rst.getInt(1), rst.getString(2), rst.getString(3));
+                results.add(utemp);
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -232,6 +248,22 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(u1);
                 results.add(u2);
             */
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u.User_ID, " +
+                        "u.First_Name, " +
+                        "u.Last_Name " + 
+                    "FROM " + UsersTable + " u " + 
+                    "JOIN " CurrentCitiesTable " c " + 
+                        "ON u.User_ID = c.User_ID " + 
+                    "JOIN " HometownCitiesTable + " h " + 
+                        "ON u.User_ID = h.User_ID " + 
+                    "WHERE c.Current_City_ID <> h.Hometwon_City_ID " + 
+                    "ORDER BY u.User_ID");
+            
+            while(rst.next()) {
+                UserInfo utemp = new UserInfo(rst.getInt(1), rst.getString(2), rst.getString(3));
+                results.add(utemp);
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
