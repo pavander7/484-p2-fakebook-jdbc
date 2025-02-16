@@ -13,7 +13,11 @@
 -- Query 9a
 -- Goals: (A)
 SELECT  u1.user_id, 
-        u2.user_id
+        u1.first_name, 
+        u1.last_name, 
+        u2.user_id, 
+        u2.first_name, 
+        u2.last_name
 FROM project2.Public_Users u1 -- FakebookOracleConstants.UsersTable u1
 -- (i) same last name
 JOIN project2.Public_Users u2 -- FakebookOracleConstants.UsersTable u2
@@ -23,7 +27,7 @@ WHERE EXISTS (
     SELECT 1
     FROM project2.Public_User_Hometown_Cities h1 -- FakebookOracleConstants.HometownCitiesTable h1
     JOIN project2.Public_User_Hometown_Cities h2 -- FakebookOracleConstants.HometownCitiesTable h2
-        ON h1.user_id = h2.user_id
+        ON h1.Hometown_City_ID = h2.Hometown_City_ID
     WHERE h1.user_id = u1.user_id
     AND h2.user_id = u2.user_id
 )
