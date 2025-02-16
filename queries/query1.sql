@@ -18,19 +18,8 @@ ORDER BY Name_Length DESC, u.First_Name;
 
 -- Query 1b
 -- GOALS: (C), (D)
-WITH ordered AS (
-  SELECT DISTINCT u.First_Name,
-         COUNT(u.First_Name) AS Name_Count
-  FROM project2.Public_Users u
-  GROUP BY u.first_name
-  ORDER BY Name_Count DESC, u.First_Name
-),
-boundary AS (
-  SELECT Name_Count AS tenth_name_count
-  FROM ordered
-  FETCH NEXT 1 ROW ONLY
-)
-SELECT o.First_Name, o.Name_Count
-FROM ordered o, boundary b
-WHERE o.Name_Count >= b.tenth_name_count
-ORDER BY o.Name_Count DESC, o.First_Name;
+SELECT  DISTINCT u.First_Name, 
+        COUNT(u.First_Name) AS Name_Count
+FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u
+GROUP BY u.first_name
+ORDER BY Name_Count DESC, u.First_Name;
