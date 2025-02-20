@@ -371,6 +371,67 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 mp.addSharedPhoto(p);
                 results.add(mp);
             */
+
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u1.user_id, " + 
+                        "u1.first_name, " +
+                        "u1.last_name, " +
+                        "u1.year_of_birth, " + 
+                        "u2.user_id, " +
+                        "u2.first_name, " +
+                        "u2.last_name, " + 
+                        "u2.year_of_birth " + 
+                    "FROM " + UsersTable + " u1 " +
+                    "JOIN " + UsersTable + " u2 " + 
+                        "ON u1.gender = u2.gender " +
+                    "WHERE u1.user_id < u2.user_id " + 
+                    "AND EXISTS (" + 
+                        "SELECT 1 " + 
+                        "FROM " + TagsTable + " t1 " +
+                        "JOIN " + TagsTable + " t2 " + 
+                            "ON t1.tag_photo_id = t2.tag_photo_id " +
+                        "WHERE t1.tag_subject_id = u2.user_id " +
+                        "AND t2.tag_subject_id = u2.user_id" + 
+                        ") " + 
+                    "AND ABS(u1.year_of_birth - u2.year_of_birth) <= " + String.valueOf(yearDiff) + " " +
+                    "AND NOT EXISTS (" +
+                        "SELECT 1 " + 
+                        "FROM " + FriendsTable + " f " +
+                        "WHERE f.user1_id = u1.usr_id " +
+                        "AND f.user2_id = u2.user_id" + 
+                        ") " + 
+                    "GROUP BY u1.user_id, u1.first_name, u1.last_name, u1.year_of_birth, " + 
+                            "u2.user_id, u2.first_name, u2.last_name, u2.year_of_birth " +
+                    "ORDER BY num_tags, u1.user_id, u2.user_id " + 
+                    "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY");
+            while(rst.next()) {
+                int uid1 = rst.getInt(1), uid2 = rst.getInt(5);
+                UserInfo u1 = new UserInfo(uid1, rst.getString(2), rst.getString(3));
+                UserInfo u2 = new UserInfo(uid2, rst.getString(6), rst.getString(7));
+                MatchPair mp = new MatchPair (u1, rst.getInt(4), u2, rst.getInt(8));
+
+                ResultSet rst = stmt.executeQuery(
+                    "SELECT p.photo_id, " + 
+                            "p.photo_link, " +
+                            "a.album_id, " +
+                            "a.album_name " + 
+                        "FROM " + PhotosTable + " p " + 
+                        "JOIN " + AlbumsTable + " a " + 
+                            "ON p.album_id = a.album_id " + 
+                        "WHERE EXISTS(" + 
+                            "SELECT 1 " + 
+                            "FROM " + TagsTable + " t " + 
+                            "WHERE t.tag_subject_id = " + String.getValueOf(uid1) + " " +
+                            "AND t.tag_photo_id = p.photo_id" + 
+                            ") " + 
+                        "AND EXISTS(" +
+                            "SELECT 1 " + 
+                            "FROM " + TagsTable + " t " + 
+                            "WHERE t.tag_subject_id = " + String.getValueOf(uid2) + " " +
+                            "AND t.tag_photo_id = p.photo_id" +
+                            ") " + 
+                        "ORDER BY p.photo_id");
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
