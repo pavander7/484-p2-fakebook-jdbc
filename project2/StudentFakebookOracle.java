@@ -253,7 +253,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "u.First_Name, " +
                         "u.Last_Name " + 
                     "FROM " + UsersTable + " u " + 
-                    "JOIN " + CurrentCitiesTable " c " + 
+                    "JOIN " + CurrentCitiesTable + " c " + 
                         "ON u.User_ID = c.User_ID " + 
                     "JOIN " + HometownCitiesTable + " h " + 
                         "ON u.User_ID = h.User_ID " + 
@@ -329,11 +329,11 @@ public final class StudentFakebookOracle extends FakebookOracle {
                             "ON p.photo_id = t.tag_photo_id " + 
                         "JOIN " + UsersTable + " u " + 
                             "ON t.tag_subject_id = u.user_id " + 
-                        "WHERE p.photo_id = " String.valueOf(photoID) + " " + 
+                        "WHERE p.photo_id = " + String.valueOf(photoID) + " " + 
                         "ORDER BY u.user_id");
                 while(rst2.next()) {
                     UserInfo utemp = new UserInfo(rst2.getInt(1), rst2.getString(2), rst2.getString(3));
-                    tp.add(utemp)
+                    tp.addTaggedUser(utemp);
                 }
                 results.add(tp);
             }
