@@ -26,20 +26,17 @@ SELECT  u1.user_id,
         u2.year_of_birth,
         COUNT (*) as num_tags
 FROM project2.Public_Users u1 -- FakebookOracleConstants.UsersTable u1
+-- (ii) tagged in at least one common photo
+JOIN project2.Public_Tags t1 -- PublicFakebookConstants.TagsTable t1
+    ON t1.tag_subject_id = u1.user_id
+JOIN project2.Public_Tags t2 -- PublicFakebookConstants.TagsTable t2
+    ON t1.tag_photo_id = t2.tag_photo_id
 JOIN project2.Public_Users u2 -- FakebookOracleConstants.UsersTable u2
--- (i) same gender
-    ON u1.gender = u2.gender 
+    ON t2.tag_subject_id = u2.user_id
 -- ensures users are different and that pairs are only selected once
 WHERE u1.user_id < u2.user_id
--- (ii) tagged in at least one common photo
-AND EXISTS (
-    SELECT 1
-    FROM project2.Public_Tags t1 -- PublicFakebookConstants.TagsTable t1
-    JOIN project2.Public_Tags t2 -- PublicFakebookConstants.TagsTable t2
-        ON t1.tag_photo_id = t2.tag_photo_id
-    WHERE t1.tag_subject_id = u1.user_id
-    AND t2.tag_subject_id = u2.user_id
-) 
+-- (i) same gender
+AND u1.gender = u2.gender 
 -- (iii) difference in birth years is no more than <yearDiff>
 AND ABS(u1.year_of_birth - u2.year_of_birth) <= 2 -- FIXME: replace with a variable in java
 -- (iv) not friends

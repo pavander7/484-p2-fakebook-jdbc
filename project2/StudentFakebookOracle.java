@@ -125,16 +125,16 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 info.setCommonNameCount(42);
                 return info;
             */
-
             // Step 1
             // ------------
             // * (A) Find the first name(s) with the most letters
             // * (B) Find the first name(s) with the fewest letters
             ResultSet rst = stmt.executeQuery(
-                    "SELECT DISTINCT First_Name, " +
-                                    "Length(First_Name) AS Name_Length " +
-                        "FROM " + UsersTable + " " +
-                        "ORDER BY Name_Length DESC, First_Name ASC");
+                    "SELECT First_Name, Name_Length FROM (" +
+                    "    SELECT DISTINCT First_Name, LENGTH(First_Name) AS Name_Length " +
+                    "    FROM " + UsersTable + 
+                    "    ORDER BY Name_Length DESC, First_Name ASC" +
+                    ")");
 
             rst.first();
             int mostLetters = rst.getInt(2);
@@ -144,6 +144,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
             FirstNameInfo info = new FirstNameInfo();
 
             rst.first();
+            info.addLongName(rst.getString(1));
             while (rst.next()) { // step through result rows/records one by one
                 if (rst.getInt(2) == mostLetters) {
                     info.addLongName(rst.getString(1));
@@ -161,6 +162,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                     "SELECT DISTINCT First_Name, " +
                                     "COUNT(First_Name) AS Name_Count " +
                         "FROM " + UsersTable + " " + 
+                        "GROUP BY First_Name " +
                         "ORDER BY Name_Count DESC, First_Name ASC");
             
             int most_users = 0;
@@ -220,9 +222,14 @@ public final class StudentFakebookOracle extends FakebookOracle {
                     "ORDER BY u.User_ID ASC");
         
             while(rst.next()) {
-                UserInfo utemp = new UserInfo(rst.getInt(1), rst.getString(2), rst.getString(3));
+                UserInfo utemp = new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3));
                 results.add(utemp);
             }
+
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -257,13 +264,18 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "ON u.User_ID = c.User_ID " + 
                     "JOIN " + HometownCitiesTable + " h " + 
                         "ON u.User_ID = h.User_ID " + 
-                    "WHERE c.Current_City_ID <> h.Hometwon_City_ID " + 
+                    "WHERE c.Current_City_ID <> h.Hometown_City_ID " + 
                     "ORDER BY u.User_ID");
             
             while(rst.next()) {
-                UserInfo utemp = new UserInfo(rst.getInt(1), rst.getString(2), rst.getString(3));
+                UserInfo utemp = new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3));
                 results.add(utemp);
             }
+
+            // * Close resources being used
+            rst.close();
+            stmt.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -300,7 +312,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
             // Step 1
             // ------------
             // * (A) Find <num> most-tagged photos
-            ResultSet rst = stmt.executeQuery(
+            ResultSet rst_1 = stmt.executeQuery(
                 "SELECT p.photo_id, " +
                         "p.photo_link, " + 
                         "a.album_id, " +
@@ -313,30 +325,37 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "ON p.photo_id = t.tag_photo_id " +
                     "GROUP BY p.photo_id, p.photo_link, a.album_id, a.album_name " +
                     "ORDER BY Num_Tags DESC, p.photo_id ASC " + 
-                    "FETCH FIRST " + String.valueOf(num) + "ROWS ONLY");
+                    "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY");
                 
-            while(rst.next()) {
-                int photoID = rst.getInt(1);
-                PhotoInfo p = new PhotoInfo(photoID, rst.getInt(3), rst.getString(2), rst.getString(4));
-                TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
+            try (Statement stmt2 = oracle.createStatement(FakebookOracleConstants.AllScroll,
+                FakebookOracleConstants.ReadOnly)) {
+                while (rst_1.next()) {
+                    long photoID = rst_1.getLong(1);
+                    PhotoInfo p = new PhotoInfo(photoID, rst_1.getLong(3), rst_1.getString(2), rst_1.getString(4));
+                    TaggedPhotoInfo tp = new TaggedPhotoInfo(p);
 
-                ResultSet rst2 = stmt.executeQuery(
-                    "SELECT u.user_id, " + 
-                            "u.first_name, " +
-                            "u.last_name " + 
+                    ResultSet rst_2 = stmt2.executeQuery(
+                        "SELECT u.user_id, u.first_name, u.last_name " + 
                         "FROM " + PhotosTable + " p " + 
-                        "JOIN " + TagsTable + " t " +
-                            "ON p.photo_id = t.tag_photo_id " + 
-                        "JOIN " + UsersTable + " u " + 
-                            "ON t.tag_subject_id = u.user_id " + 
-                        "WHERE p.photo_id = " + String.valueOf(photoID) + " " + 
+                        "JOIN " + TagsTable + " t ON p.photo_id = t.tag_photo_id " + 
+                        "JOIN " + UsersTable + " u ON t.tag_subject_id = u.user_id " + 
+                        "WHERE p.photo_id = " + photoID + " " + 
                         "ORDER BY u.user_id");
-                while(rst2.next()) {
-                    UserInfo utemp = new UserInfo(rst2.getInt(1), rst2.getString(2), rst2.getString(3));
-                    tp.addTaggedUser(utemp);
+
+                    while (rst_2.next()) {
+                        UserInfo utemp = new UserInfo(rst_2.getLong(1), rst_2.getString(2), rst_2.getString(3));
+                        tp.addTaggedUser(utemp);
+                    }
+                    rst_2.close();
+                    results.add(tp);
                 }
-                results.add(tp);
+                stmt2.close();
             }
+
+        // * Close resources being used
+        rst_1.close();
+        stmt.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -372,66 +391,85 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(mp);
             */
 
-            ResultSet rst = stmt.executeQuery(
-                "SELECT u1.user_id, " + 
-                        "u1.first_name, " +
-                        "u1.last_name, " +
-                        "u1.year_of_birth, " + 
-                        "u2.user_id, " +
-                        "u2.first_name, " +
-                        "u2.last_name, " + 
-                        "u2.year_of_birth " + 
-                    "FROM " + UsersTable + " u1 " +
-                    "JOIN " + UsersTable + " u2 " + 
-                        "ON u1.gender = u2.gender " +
-                    "WHERE u1.user_id < u2.user_id " + 
-                    "AND EXISTS (" + 
-                        "SELECT 1 " + 
-                        "FROM " + TagsTable + " t1 " +
-                        "JOIN " + TagsTable + " t2 " + 
-                            "ON t1.tag_photo_id = t2.tag_photo_id " +
-                        "WHERE t1.tag_subject_id = u2.user_id " +
-                        "AND t2.tag_subject_id = u2.user_id" + 
-                        ") " + 
-                    "AND ABS(u1.year_of_birth - u2.year_of_birth) <= " + String.valueOf(yearDiff) + " " +
-                    "AND NOT EXISTS (" +
-                        "SELECT 1 " + 
-                        "FROM " + FriendsTable + " f " +
-                        "WHERE f.user1_id = u1.usr_id " +
-                        "AND f.user2_id = u2.user_id" + 
-                        ") " + 
-                    "GROUP BY u1.user_id, u1.first_name, u1.last_name, u1.year_of_birth, " + 
-                            "u2.user_id, u2.first_name, u2.last_name, u2.year_of_birth " +
-                    "ORDER BY num_tags, u1.user_id, u2.user_id " + 
-                    "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY");
-            while(rst.next()) {
-                int uid1 = rst.getInt(1), uid2 = rst.getInt(5);
-                UserInfo u1 = new UserInfo(uid1, rst.getString(2), rst.getString(3));
-                UserInfo u2 = new UserInfo(uid2, rst.getString(6), rst.getString(7));
-                MatchPair mp = new MatchPair (u1, rst.getInt(4), u2, rst.getInt(8));
+            ResultSet rst_1 = stmt.executeQuery(
+                "SELECT u1.user_id, " +
+                    "u1.first_name, " +
+                    "u1.last_name, " +
+                    "u1.year_of_birth, " +
+                    "u2.user_id, " +
+                    "u2.first_name, " +
+                    "u2.last_name, " +
+                    "u2.year_of_birth, " +
+                    "COUNT(*) AS num_tags " +
+                "FROM " + UsersTable + " u1 " +
+                "JOIN " + TagsTable + " t1 ON t1.tag_subject_id = u1.user_id " +
+                "JOIN " + TagsTable + " t2 ON t1.tag_photo_id = t2.tag_photo_id " +
+                "JOIN " + UsersTable + " u2 ON t2.tag_subject_id = u2.user_id " +
+                "WHERE u1.user_id < u2.user_id " +
+                "AND u1.gender = u2.gender " +
+                "AND ABS(u1.year_of_birth - u2.year_of_birth) <= " + String.valueOf(yearDiff) + " " +
+                "AND NOT EXISTS ( " +
+                    "SELECT 1 " +
+                    "FROM " + FriendsTable + " f " +
+                    "WHERE f.user1_id = u1.user_id " +
+                    "AND f.user2_id = u2.user_id " +
+                ") " +
+                "GROUP BY u1.user_id, u1.first_name, u1.last_name, u1.year_of_birth, " +
+                        "u2.user_id, u2.first_name, u2.last_name, u2.year_of_birth " +
+                "ORDER BY num_tags DESC, u1.user_id ASC, u2.user_id ASC " +
+                "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY"
+            );
 
-                ResultSet rst = stmt.executeQuery(
-                    "SELECT p.photo_id, " + 
-                            "p.photo_link, " +
-                            "a.album_id, " +
-                            "a.album_name " + 
-                        "FROM " + PhotosTable + " p " + 
-                        "JOIN " + AlbumsTable + " a " + 
-                            "ON p.album_id = a.album_id " + 
-                        "WHERE EXISTS(" + 
-                            "SELECT 1 " + 
-                            "FROM " + TagsTable + " t " + 
-                            "WHERE t.tag_subject_id = " + String.getValueOf(uid1) + " " +
-                            "AND t.tag_photo_id = p.photo_id" + 
-                            ") " + 
-                        "AND EXISTS(" +
-                            "SELECT 1 " + 
-                            "FROM " + TagsTable + " t " + 
-                            "WHERE t.tag_subject_id = " + String.getValueOf(uid2) + " " +
-                            "AND t.tag_photo_id = p.photo_id" +
-                            ") " + 
-                        "ORDER BY p.photo_id");
+
+            try (Statement stmt2 = oracle.createStatement(FakebookOracleConstants.AllScroll,
+                FakebookOracleConstants.ReadOnly)) {
+                while(rst_1.next()) {
+                    long uid1 = rst_1.getLong(1), uid2 = rst_1.getLong(5);
+                    UserInfo u1 = new UserInfo(uid1, rst_1.getString(2), rst_1.getString(3));
+                    UserInfo u2 = new UserInfo(uid2, rst_1.getString(6), rst_1.getString(7));
+                    MatchPair mp = new MatchPair (u1, rst_1.getLong(4), u2, rst_1.getLong(8));
+
+                    ResultSet rst_2 = stmt2.executeQuery(
+                        "SELECT p.photo_id, " + 
+                                "p.photo_link, " +
+                                "a.album_id, " +
+                                "a.album_name " + 
+                            "FROM " + PhotosTable + " p " + 
+                            "JOIN " + AlbumsTable + " a " + 
+                                "ON p.album_id = a.album_id " + 
+                            "WHERE EXISTS(" + 
+                                "SELECT 1 " + 
+                                "FROM " + TagsTable + " t " + 
+                                "WHERE t.tag_subject_id = " + String.valueOf(uid1) + " " +
+                                "AND t.tag_photo_id = p.photo_id" + 
+                                ") " + 
+                            "AND EXISTS(" +
+                                "SELECT 1 " + 
+                                "FROM " + TagsTable + " t " + 
+                                "WHERE t.tag_subject_id = " + String.valueOf(uid2) + " " +
+                                "AND t.tag_photo_id = p.photo_id" +
+                                ") " + 
+                            "ORDER BY p.photo_id");
+
+                    while(rst_2.next()) {
+                        long pid = rst_2.getLong(1), aid = rst_2.getLong(3);
+                        String link = rst_2.getString(2), album_name = rst_2.getString(4);
+                        PhotoInfo p = new PhotoInfo(pid, aid, link, album_name);
+                        mp.addSharedPhoto(p);
+                    }
+
+                    rst_2.close();
+
+                    results.add(mp);
+                    
+                }
+                stmt2.close();
             }
+
+            // * Close resources being used
+            rst_1.close();
+            stmt.close();
+
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -452,137 +490,121 @@ public final class StudentFakebookOracle extends FakebookOracle {
 
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
-            ResultSet rst = stmt.executeQuery(
-                "SELECT  u1.user_id, \n" + //
-                "        u1.first_name, \n" + //
-                "        u1.last_name, \n" + //
-                "        u2.user_id, \n" + //
-                "        u2.first_name, \n" + //
-                "        u2.last_name, \n" + //
-                "        COUNT(*) AS Mutual_Count\n" + //
-                "-- select ALL pairs of users\n" + //
-                "FROM " + UsersTable + " u1\n" + //
-                "JOIN " + UsersTable + " u2\n" + //
-                "    ON u1.user_id < u2.user_id\n" + //
-                "-- (i) find pairs of friends in common\n" + //
-                "-- (i)(a) find friends of u1 that are not u2\n" + //
-                "JOIN " + FriendsTable + " f1\n" + //
-                "    ON (\n" + //
-                "        (u1.user_id = f1.user1_id AND u2.user_id <> f1.user2_id) \n" + //
-                "        OR \n" + //
-                "        (u1.user_id = f1.user2_id AND u2.user_id <> f1.user1_id)\n" + //
-                "    )\n" + //
-                "-- (i)(b) select only friends of u1 that are friends of u2\n" + //
-                "WHERE EXISTS (\n" + //
-                "    SELECT 1\n" + //
-                "    FROM " + FriendsTable + " f2\n" + //
-                "    WHERE (\n" + //
-                "        (\n" + //
-                "            f2.user1_id = u2.user_id \n" + //
-                "            AND \n" + //
-                "            (\n" + //
-                "                (f1.user1_id = f2.user2_id AND f1.user1_id <> u1.user_id)\n" + //
-                "                OR\n" + //
-                "                (f1.user2_id = f2.user2_id AND f1.user2_id <> u1.user_id)\n" + //
-                "            )\n" + //
-                "        )\n" + //
-                "        OR\n" + //
-                "        (\n" + //
-                "            f2.user2_id = u2.user_id \n" + //
-                "            AND \n" + //
-                "            (\n" + //
-                "                (f1.user1_id = f2.user1_id AND f1.user1_id <> u1.user_id)\n" + //
-                "                OR\n" + //
-                "                (f1.user2_id = f2.user1_id AND f1.user2_id <> u1.user_id)\n" + //
-                "            )\n" + //
-                "        )\n" + //
-                "    )\n" + //
-                ")\n" + //
-                "-- ensures no duplicates or self-pairs\n" + //
-                "AND u1.user_id < u2.user_id\n" + //
-                "-- (ii) ensure users are not already friends\n" + //
-                "AND NOT EXISTS (\n" + //
-                "    SELECT 1\n" + //
-                "    FROM " + FriendsTable + " f3\n" + //
-                "    WHERE f3.user1_id = u1.user_id\n" + //
-                "    AND f3.user2_id = u2.user_id\n" + //
-                "    -- u1.user_id < u2.user_id and f3.user1_id < f3.user2_id -> \n" + //
-                "    -- no need to check if f3.user2_id = u1.user_id and f3.user1_id = u2.user_id\n" + //
-                ") \n" + //
-                "GROUP BY u1.user_id, \n" + //
-                "         u1.first_name, \n" + //
-                "         u1.last_name, \n" + //
-                "         u2.user_id, \n" + //
-                "         u2.first_name, \n" + //
-                "         u2.last_name\n" + //
-                "ORDER BY Mutual_Count DESC, u1.user_id ASC, u2.user_id ASC\n" + //
-                "FETCH FIRST " + num + " ROWS ONLY;"
-            );
 
-            while (rst.next()) {
-                // get u1
-                int u1_id = rst.getInt(1);
-                String u1_first_name = rst.getString(2);
-                String u1_last_name = rst.getString(3);
-
-                UserInfo u1 = new UserInfo(u1_id, u1_first_name, u1_last_name);
-
-                // get u2
-                int u2_id = rst.getInt(4);
-                String u2_first_name = rst.getString(5);
-                String u2_last_name = rst.getString(6);
-
-                UserInfo u2 = new UserInfo(u2_id, u2_first_name, u2_last_name);
-
-                // make pair
-                UsersPair up = new UsersPair(u1, u2);
-
-                // get mutuals
-                ResultSet rst_b = stmt.executeQuery(
-                    "SELECT  u.user_id, \n" + //
-                    "        u.first_name, \n" + //
-                    "        u.last_name\n" + //
-                    "FROM project2.Public_Users u -- FakebookOracleConstants.UsersTable u\n" + //
-                    "WHERE EXISTS (\n" + //
-                    "    SELECT 1\n" + //
-                    "    FROM project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f\n" + //
-                    "    WHERE (\n" + //
-                    "        (f.user1_id = u.user_id AND f.user2_id = 42) -- FIXME: replace with a variable in java\n" + //
-                    "        OR \n" + //
-                    "        (f.user2_id = u.user_id AND f.user1_id = 42) -- FIXME: replace with a variable in java\n" + //
-                    "    )\n" + //
-                    ") \n" + //
-                    "AND EXISTS (\n" + //
-                    "    SELECT 1\n" + //
-                    "    FROM project2.Public_Friends f -- FakebookOracleConstants.FriendsTable f\n" + //
-                    "    WHERE (\n" + //
-                    "        (f.user1_id = u.user_id AND f.user2_id = 318) -- FIXME: replace with a variable in java\n" + //
-                    "        OR \n" + //
-                    "        (f.user2_id = u.user_id AND f.user1_id = 318) -- FIXME: replace with a variable in java\n" + //
-                    "    )\n" + //
-                    ")\n" + //
-                    "ORDER BY u.user_id;"
+            // Step 1: Create the bidirectional_friends_view to optimize the query
+            try {
+                stmt.executeUpdate(
+                    "CREATE OR REPLACE VIEW bidirectional_friends_view AS " +
+                    "SELECT user1_id AS usera_id, user2_id AS userb_id " +
+                    "FROM " + FriendsTable + " " +
+                    "WHERE user1_id < user2_id " +
+                    "UNION " +
+                    "SELECT user2_id AS usera_id, user1_id AS userb_id " +
+                    "FROM " + FriendsTable + " " +
+                    "WHERE user1_id > user2_id"
                 );
-
-                while (rst_b.next()) {
-                    int u3_id = rst_b.getInt(1);
-                    String u3_first_name = rst_b.getString(2);
-                    String u3_last_name = rst_b.getString(3);
-
-                    UserInfo u3 = new UserInfo(u3_id, u3_first_name, u3_last_name);
-
-                    up.addSharedFriend(u3);
-                }
-
-                // * Close resources being used
-                rst.close();
-                rst_b.close();
-                stmt.close();
-
-                results.add(up);
+            } catch (SQLException e) {
+                System.out.println("Error creating view: " + e.getMessage());
+                return results; // Exit if view creation fails
             }
+
+            System.out.println("executing query");
+            // Step 2: Execute the main query to find pairs of users with many mutual friends
+            ResultSet rst_1 = stmt.executeQuery(
+                "SELECT u1.user_id, u1.first_name, u1.last_name, " +
+                "       u2.user_id, u2.first_name, u2.last_name, " +
+                "       COUNT(*) AS Mutual_Count " +
+                "FROM " + UsersTable + " u1 " +
+                "JOIN " + UsersTable + " u2 " +
+                "    ON u1.user_id < u2.user_id " +
+                "JOIN bidirectional_friends_view bf1 " +
+                "    ON (u1.user_id = bf1.usera_id AND u2.user_id <> bf1.userb_id) " +
+                "JOIN bidirectional_friends_view bf2 " +
+                "    ON (u2.user_id = bf2.usera_id AND u1.user_id <> bf2.userb_id) " +
+                "WHERE EXISTS ( " +
+                "    SELECT 1 " +
+                "    FROM bidirectional_friends_view bf3 " +
+                "    WHERE (bf3.usera_id = u2.user_id AND bf3.userb_id = u1.user_id) " +
+                "    OR (bf3.userb_id = u2.user_id AND bf3.usera_id = u1.user_id) " +
+                ") " +
+                "AND NOT EXISTS (" +
+                "    SELECT 1 " +
+                "    FROM " + FriendsTable + " f3 " +
+                "    WHERE f3.user1_id = u1.user_id " +
+                "    AND f3.user2_id = u2.user_id " +
+                ") " +
+                "GROUP BY u1.user_id, u1.first_name, u1.last_name, u2.user_id, u2.first_name, u2.last_name " +
+                "ORDER BY Mutual_Count DESC, u1.user_id ASC, u2.user_id ASC " +
+                "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY"
+            );
+            System.out.println("executed query");
+
+            // Debugging: Check if the result set contains data
+            if (!rst_1.isBeforeFirst()) {
+                System.out.println("No pairs found in the main query.");
+            } else {
+                System.out.println("Proccessing pairs found in the main query.");
+                while (rst_1.next()) {
+                    long u1_id = rst_1.getLong(1);
+                    String u1_first_name = rst_1.getString(2);
+                    String u1_last_name = rst_1.getString(3);
+                    UserInfo u1 = new UserInfo(u1_id, u1_first_name, u1_last_name);
+
+                    long u2_id = rst_1.getLong(4);
+                    String u2_first_name = rst_1.getString(5);
+                    String u2_last_name = rst_1.getString(6);
+                    UserInfo u2 = new UserInfo(u2_id, u2_first_name, u2_last_name);
+
+                    UsersPair up = new UsersPair(u1, u2);
+
+                    // Step 3: Find mutual friends for the pair
+                    try (Statement stmt2 = oracle.createStatement(FakebookOracleConstants.AllScroll,
+                            FakebookOracleConstants.ReadOnly)) {
+
+                        ResultSet rst_2 = stmt2.executeQuery(
+                            "SELECT DISTINCT u.user_id, u.first_name, u.last_name " +
+                            "FROM project2.Public_Users u " +
+                            "WHERE EXISTS (" +
+                            "    SELECT 1 " +
+                            "    FROM project2.Public_Friends f " +
+                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + String.valueOf(u1_id) + ") " +
+                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + String.valueOf(u1_id) + ")" +
+                            ") " +
+                            "AND EXISTS (" +
+                            "    SELECT 1 " +
+                            "    FROM project2.Public_Friends f " +
+                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + String.valueOf(u2_id) + ") " +
+                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + String.valueOf(u2_id) + ")" +
+                            ") " +
+                            "ORDER BY u.user_id"
+                        );
+
+                        while (rst_2.next()) {
+                            long u3_id = rst_2.getLong(1);
+                            String u3_first_name = rst_2.getString(2);
+                            String u3_last_name = rst_2.getString(3);
+
+                            UserInfo u3 = new UserInfo(u3_id, u3_first_name, u3_last_name);
+                            up.addSharedFriend(u3);
+                        }
+
+                        rst_2.close();
+                    }
+
+                    results.add(up);
+                }
+            }
+
+            System.out.println("No pairs found in the main query.");
+            // Step 4: Drop the view after query execution
+            stmt.executeUpdate("DROP VIEW bidirectional_friends_view");
+
+            // Close resources
+            rst_1.close();
+            stmt.close();
+
         } catch (SQLException e) {
-            System.err.println(e.getMessage());
+            System.err.println("Error: " + e.getMessage());
         }
 
         return results;
@@ -603,16 +625,17 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "JOIN " + EventsTable + " e\n" + //
                 "ON c.city_id = e.event_city_id\n" + //
                 "GROUP BY c.state_name\n" + //
-                "ORDER BY Num_Events DESC, c.state_name ASC;"
+                "ORDER BY Num_Events DESC, c.state_name ASC"
             );
             
             rst.first();
-            int most_events = rst.getInt(3);
+            int most_events = rst.getInt(2);
 
             EventStateInfo info = new EventStateInfo(most_events);
+            info.addState(rst.getString(1));
 
             while (rst.next()) {
-                if (rst.getInt(3) == most_events) {
+                if (rst.getInt(2) == most_events) {
                     info.addState(rst.getString(1));
                 }
             }
@@ -652,11 +675,11 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "        OR \n" + //
                 "        (f.user2_id = u.user_id AND f.user1_id = " + userID + ")\n" + //
                 "    )\n" + //
-                "ORDER BY u.year_of_birth ASC, u.month_of_birth ASC, u.day_of_birth ASC, u.user_id ASC;"
+                "ORDER BY u.year_of_birth ASC, u.month_of_birth ASC, u.day_of_birth ASC, u.user_id ASC"
             );
 
             rst.first();
-            int oldest = rst.getInt(1);
+            long oldest = rst.getLong(1);
             String oldest_first_name = rst.getString(2);
             String oldest_last_name = rst.getString(3);
             int oldest_year = rst.getInt(4);
@@ -664,13 +687,13 @@ public final class StudentFakebookOracle extends FakebookOracle {
             int oldest_day = rst.getInt(6);
             while (rst.next()) {
                 if (rst.getInt(4) == oldest_year && rst.getInt(5) == oldest_month && rst.getInt(6) == oldest_day) {
-                    oldest = rst.getInt(1);
+                    oldest = rst.getLong(1);
                     oldest_first_name = rst.getString(2);
                     oldest_last_name = rst.getString(3);
                 } else break;
             }
             rst.last();
-            int youngest = rst.getInt(1);
+            long youngest = rst.getLong(1);
             String youngest_first_name = rst.getString(2);
             String youngest_last_name = rst.getString(3);
 
@@ -708,7 +731,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "        u2.user_id, \n" + //
                 "        u2.first_name, \n" + //
                 "        u2.last_name\n" + //
-                "FROM " + UsersTable + "\n" + //
+                "FROM " + UsersTable + " u1\n" + //
                 "-- (i) same last name\n" + //
                 "JOIN " + UsersTable + " u2\n" + //
                 "    ON u1.last_name = u2.last_name\n" + //
@@ -732,17 +755,17 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "AND ABS(u1.year_of_birth - u2.year_of_birth) < 10\n" + //
                 "-- ensures no duplicates or self-pairs\n" + //
                 "AND u1.user_id < u2.user_id\n" + //
-                "ORDER BY u1.user_id, u2.user_id;"
+                "ORDER BY u1.user_id, u2.user_id"
             );
 
             while (rst.next()) { // step through result rows/records one by one
                 // get user1 info
-                int user_id1 = rst.getInt(1);
+                long user_id1 = rst.getLong(1);
                 String first_name1 = rst.getString(2);
                 String last_name1 = rst.getString(3);
 
                 // get user2 info
-                int user_id2 = rst.getInt(4);
+                long user_id2 = rst.getLong(4);
                 String first_name2 = rst.getString(5);
                 String last_name2 = rst.getString(6);
 
