@@ -325,7 +325,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                         "ON p.photo_id = t.tag_photo_id " +
                     "GROUP BY p.photo_id, p.photo_link, a.album_id, a.album_name " +
                     "ORDER BY Num_Tags DESC, p.photo_id ASC " + 
-                    "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY");
+                    "FETCH FIRST " + num + " ROWS ONLY");
                 
             try (Statement stmt2 = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
@@ -407,7 +407,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "JOIN " + UsersTable + " u2 ON t2.tag_subject_id = u2.user_id " +
                 "WHERE u1.user_id < u2.user_id " +
                 "AND u1.gender = u2.gender " +
-                "AND ABS(u1.year_of_birth - u2.year_of_birth) <= " + String.valueOf(yearDiff) + " " +
+                "AND ABS(u1.year_of_birth - u2.year_of_birth) <= " + yearDiff + " " +
                 "AND NOT EXISTS ( " +
                     "SELECT 1 " +
                     "FROM " + FriendsTable + " f " +
@@ -417,7 +417,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 "GROUP BY u1.user_id, u1.first_name, u1.last_name, u1.year_of_birth, " +
                         "u2.user_id, u2.first_name, u2.last_name, u2.year_of_birth " +
                 "ORDER BY num_tags DESC, u1.user_id ASC, u2.user_id ASC " +
-                "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY"
+                "FETCH FIRST " + num + " ROWS ONLY"
             );
 
 
@@ -440,13 +440,13 @@ public final class StudentFakebookOracle extends FakebookOracle {
                             "WHERE EXISTS(" + 
                                 "SELECT 1 " + 
                                 "FROM " + TagsTable + " t " + 
-                                "WHERE t.tag_subject_id = " + String.valueOf(uid1) + " " +
+                                "WHERE t.tag_subject_id = " + uid1 + " " +
                                 "AND t.tag_photo_id = p.photo_id" + 
                                 ") " + 
                             "AND EXISTS(" +
                                 "SELECT 1 " + 
                                 "FROM " + TagsTable + " t " + 
-                                "WHERE t.tag_subject_id = " + String.valueOf(uid2) + " " +
+                                "WHERE t.tag_subject_id = " + uid2 + " " +
                                 "AND t.tag_photo_id = p.photo_id" +
                                 ") " + 
                             "ORDER BY p.photo_id");
@@ -491,59 +491,44 @@ public final class StudentFakebookOracle extends FakebookOracle {
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
                 FakebookOracleConstants.ReadOnly)) {
 
-            // Step 1: Create the bidirectional_friends_view to optimize the query
-            try {
-                stmt.executeUpdate(
-                    "CREATE OR REPLACE VIEW bidirectional_friends_view AS " +
-                    "SELECT user1_id AS usera_id, user2_id AS userb_id " +
-                    "FROM " + FriendsTable + " " +
-                    "WHERE user1_id < user2_id " +
-                    "UNION " +
-                    "SELECT user2_id AS usera_id, user1_id AS userb_id " +
-                    "FROM " + FriendsTable + " " +
-                    "WHERE user1_id > user2_id"
-                );
-            } catch (SQLException e) {
-                System.out.println("Error creating view: " + e.getMessage());
-                return results; // Exit if view creation fails
-            }
-
-            System.out.println("executing query");
-            // Step 2: Execute the main query to find pairs of users with many mutual friends
             ResultSet rst_1 = stmt.executeQuery(
-                "SELECT u1.user_id, u1.first_name, u1.last_name, " +
-                "       u2.user_id, u2.first_name, u2.last_name, " +
-                "       COUNT(*) AS Mutual_Count " +
-                "FROM " + UsersTable + " u1 " +
-                "JOIN " + UsersTable + " u2 " +
-                "    ON u1.user_id < u2.user_id " +
-                "JOIN bidirectional_friends_view bf1 " +
-                "    ON (u1.user_id = bf1.usera_id AND u2.user_id <> bf1.userb_id) " +
-                "JOIN bidirectional_friends_view bf2 " +
-                "    ON (u2.user_id = bf2.usera_id AND u1.user_id <> bf2.userb_id) " +
-                "WHERE EXISTS ( " +
-                "    SELECT 1 " +
-                "    FROM bidirectional_friends_view bf3 " +
-                "    WHERE (bf3.usera_id = u2.user_id AND bf3.userb_id = u1.user_id) " +
-                "    OR (bf3.userb_id = u2.user_id AND bf3.usera_id = u1.user_id) " +
-                ") " +
-                "AND NOT EXISTS (" +
-                "    SELECT 1 " +
-                "    FROM " + FriendsTable + " f3 " +
-                "    WHERE f3.user1_id = u1.user_id " +
-                "    AND f3.user2_id = u2.user_id " +
-                ") " +
-                "GROUP BY u1.user_id, u1.first_name, u1.last_name, u2.user_id, u2.first_name, u2.last_name " +
-                "ORDER BY Mutual_Count DESC, u1.user_id ASC, u2.user_id ASC " +
-                "FETCH FIRST " + String.valueOf(num) + " ROWS ONLY"
+                "WITH bidirectional_friends_view AS (" +
+                    "SELECT user1_id AS user_a, user2_id AS user_b " +
+                    "FROM " + FriendsTable + " " + 
+                    "UNION " + 
+                    "SELECT user2_id AS user_a, user1_id AS user_b " +
+                    "FROM " + FriendsTable +
+                "), " +
+                "possible_pairs AS (" + 
+                    "SELECT bdf1.user_a AS user1_id, " +
+                            "bdf2.user_a AS user2_id, " +
+                            "COUNT(DISTINCT bdf1.user_b) AS mutuals_count " +
+                    "FROM bidirectional_friends_view bdf1 " + 
+                    "JOIN bidirectional_friends_view bdf2 " + 
+                        "ON bdf1.user_b = bdf2.user_b " + 
+                        "AND bdf1.user_a < bdf2.user_a " + 
+                    "LEFT JOIN bidirectional_friends_view bdf3 " + 
+                        "ON bdf1.user_a = bdf3.user_a " +
+                        "AND bdf2.user_a = bdf3.user_b " +
+                    "WHERE bdf3.user_a IS NULL " + 
+                    "GROUP BY bdf1.user_a, bdf2.user_a " + 
+                    "ORDER BY mutuals_count DESC, user1_id ASC, user2_id ASC " + 
+                    "FETCH FIRST " + num + " ROWS ONLY" +
+                ") " + 
+                "SELECT p.user1_id, u1.first_name, u1.last_name, " +
+                        "p.user2_id, u2.first_name, u2.last_name " + 
+                "FROM possible_pairs p " + 
+                "JOIN " + UsersTable + " u1 " + 
+                    "ON p.user1_id = u1.user_id " + 
+                "JOIN " + UsersTable + " u2 " + 
+                    "ON p.user2_id = u2.user_id"
             );
-            System.out.println("executed query");
 
             // Debugging: Check if the result set contains data
             if (!rst_1.isBeforeFirst()) {
                 System.out.println("No pairs found in the main query.");
             } else {
-                System.out.println("Proccessing pairs found in the main query.");
+                //System.out.println("Proccessing pairs found in the main query.");
                 while (rst_1.next()) {
                     long u1_id = rst_1.getLong(1);
                     String u1_first_name = rst_1.getString(2);
@@ -563,18 +548,18 @@ public final class StudentFakebookOracle extends FakebookOracle {
 
                         ResultSet rst_2 = stmt2.executeQuery(
                             "SELECT DISTINCT u.user_id, u.first_name, u.last_name " +
-                            "FROM project2.Public_Users u " +
+                            "FROM " + UsersTable + " u " +
                             "WHERE EXISTS (" +
                             "    SELECT 1 " +
-                            "    FROM project2.Public_Friends f " +
-                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + String.valueOf(u1_id) + ") " +
-                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + String.valueOf(u1_id) + ")" +
+                            "    FROM " + FriendsTable + " f " +
+                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + u1_id + ") " +
+                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + u1_id + ")" +
                             ") " +
                             "AND EXISTS (" +
                             "    SELECT 1 " +
-                            "    FROM project2.Public_Friends f " +
-                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + String.valueOf(u2_id) + ") " +
-                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + String.valueOf(u2_id) + ")" +
+                            "    FROM " + FriendsTable + " f " +
+                            "    WHERE (f.user1_id = u.user_id AND f.user2_id = " + u2_id + ") " +
+                            "    OR (f.user2_id = u.user_id AND f.user1_id = " + u2_id + ")" +
                             ") " +
                             "ORDER BY u.user_id"
                         );
@@ -595,9 +580,8 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 }
             }
 
-            System.out.println("No pairs found in the main query.");
             // Step 4: Drop the view after query execution
-            stmt.executeUpdate("DROP VIEW bidirectional_friends_view");
+            //stmt.executeUpdate("DROP VIEW bidirectional_friends_view");
 
             // Close resources
             rst_1.close();
